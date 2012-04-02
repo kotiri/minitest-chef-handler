@@ -1,3 +1,4 @@
+require 'minitest/spec'
 require 'minitest/unit'
 
 module MiniTest
@@ -37,7 +38,7 @@ module MiniTest
       end
     end
 
-    class TestCase < MiniTest::Unit::TestCase
+    module RunState
       attr_reader :run_status, :node, :run_context
 
       def run(runner)
@@ -49,5 +50,62 @@ module MiniTest
         super(runner)
       end
     end
+
+    module Resources
+      include ::Chef::Mixin::ConvertToClassName
+
+      def self.register_resource(resource)
+        define_method(resource) do |name|
+          clazz = ::Chef::Resource.const_get(convert_to_class_name(resource.to_s))
+          res = clazz.new(name, run_context)
+          ::Chef::Platform.provider_for_resource(res).load_current_resource
+        end
+      end
+      [:directory, :file, :package, :service].each{|r| register_resource(r)}
+
+      ::Chef::Resource::File.class_eval do
+        def include?(obj)
+          File.read(@path).include?(obj)
+        end
+      end
+    end
+
+    class TestCase < MiniTest::Unit::TestCase
+      include MiniTest::Chef::Resources
+      include MiniTest::Chef::RunState
+    end
+
+    class MiniTest::Chef::Spec < MiniTest::Spec
+      include MiniTest::Chef::Resources
+      include MiniTest::Chef::RunState
+    end
+    MiniTest::Spec.register_spec_type(/^[a-z_]+\:\:[a-z_]+$/, MiniTest::Chef::Spec)
+
   end
+
+  module Assertions
+
+    def assert_exists(directory)
+      assert File.exists?(directory.path)
+    end
+
+    def assert_installed(package)
+      refute package.version.nil?, "Expected package '#{package.name}' to be installed"
+    end
+
+    def assert_running(service)
+      assert service.running, "Expected service '#{service.name}' to be running"
+    end
+
+    def assert_enabled(service)
+      assert service.enabled, "Expected service '#{service.name}' to be enabled"
+    end
+
+    # MiniTest::Spec
+    ::Chef::Resource::Directory.infect_an_assertion :assert_exists, :must_exist, :only_one_argument
+    ::Chef::Resource::Service.infect_an_assertion :assert_running, :must_be_running, :only_one_argument
+    ::Chef::Resource::Service.infect_an_assertion :assert_enabled, :must_be_enabled, :only_one_argument
+    ::Chef::Resource::Package.infect_an_assertion :assert_installed, :must_be_installed, :only_one_argument
+  end
+
 end
