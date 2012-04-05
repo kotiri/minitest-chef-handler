@@ -89,27 +89,49 @@ module MiniTest
 
   module Assertions
 
-    def assert_exists(directory)
-      assert File.exists?(directory.path)
+    def assert_exists(file_or_dir)
+      assert File.exists?(file_or_dir.path)
+    end
+
+    def refute_exists(file_or_dir)
+      refute File.exists?(file_or_dir.path)
     end
 
     def assert_installed(package)
       refute package.version.nil?, "Expected package '#{package.name}' to be installed"
     end
 
+    def refute_installed(package)
+      assert package.version.nil?, "Expected package '#{package.name}' to not be installed"
+    end
+
     def assert_running(service)
       assert service.running, "Expected service '#{service.name}' to be running"
+    end
+
+    def refute_running(service)
+      refute service.running, "Expected service '#{service.name}' to not be running"
     end
 
     def assert_enabled(service)
       assert service.enabled, "Expected service '#{service.name}' to be enabled"
     end
 
+    def refute_enabled(service)
+      refute service.enabled, "Expected service '#{service.name}' to be disabled"
+    end
+
     # MiniTest::Spec
     ::Chef::Resource::Directory.infect_an_assertion :assert_exists, :must_exist, :only_one_argument
+    ::Chef::Resource::Directory.infect_an_assertion :refute_exists, :wont_exist, :only_one_argument
+    ::Chef::Resource::File.infect_an_assertion :assert_exists, :must_exist, :only_one_argument
+    ::Chef::Resource::File.infect_an_assertion :refute_exists, :wont_exist, :only_one_argument
     ::Chef::Resource::Service.infect_an_assertion :assert_running, :must_be_running, :only_one_argument
+    ::Chef::Resource::Service.infect_an_assertion :refute_running, :wont_be_running, :only_one_argument
     ::Chef::Resource::Service.infect_an_assertion :assert_enabled, :must_be_enabled, :only_one_argument
+    ::Chef::Resource::Service.infect_an_assertion :refute_enabled, :wont_be_enabled, :only_one_argument
     ::Chef::Resource::Package.infect_an_assertion :assert_installed, :must_be_installed, :only_one_argument
+    ::Chef::Resource::Package.infect_an_assertion :refute_installed, :wont_be_installed, :only_one_argument
   end
 
 end
