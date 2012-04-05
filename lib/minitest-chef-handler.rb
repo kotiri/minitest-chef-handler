@@ -3,6 +3,7 @@ require 'minitest/unit'
 
 module MiniTest
   module Chef
+    class TestFailure < Exception; end
     class Handler < ::Chef::Handler
       def initialize(options = {})
         path = options.delete(:path) || './test/test_*.rb'
@@ -11,12 +12,33 @@ module MiniTest
         @options = options
       end
 
+      def run_report_safely(run_status)
+        run_tests_and_raise_on_failure!(run_status)
+      end
+
+      def run_tests_and_raise_on_failure!(run_status)
+        begin
+          run_report_unsafe(run_status)
+        rescue Exception => e
+          if e.kind_of?(MiniTest::Chef::TestFailure)
+            ::Chef::Log.error("There were test failures.")
+            raise
+          else
+            ::Chef::Log.error("Report handler #{self.class.name} raised #{e.inspect}")
+            Array(e.backtrace).each { |line| ::Chef::Log.error(line) }
+          end
+        ensure
+          @run_status = nil
+        end
+      end
+
       def report
         # do not run tests if chef failed
         return if failed?
 
         runner = Runner.new(run_status)
-        runner._run(miniunit_options)
+        test_failures = runner._run(miniunit_options)
+        raise MiniTest::Chef::TestFailure if test_failures > 0
       end
 
       private
