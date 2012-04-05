@@ -41,6 +41,10 @@ module MiniTest
     module RunState
       attr_reader :run_status, :node, :run_context
 
+      def ran_recipe?(recipe)
+        node.run_state[:seen_recipes].keys.include?(recipe)
+      end
+
       def run(runner)
         if runner.respond_to?(:run_status)
           @run_status = runner.run_status
