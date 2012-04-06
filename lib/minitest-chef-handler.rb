@@ -93,6 +93,16 @@ module MiniTest
       end
       [:directory, :file, :package, :service].each{|r| register_resource(r)}
 
+      ::Chef::Resource.class_eval do
+        include MiniTest::Assertions
+        def with(attribute, values)
+          assert_equal values, send(attribute)
+          self
+        end
+        alias :and :with
+        alias :must_have :with
+      end
+
       ::Chef::Resource::File.class_eval do
         def include?(obj)
           File.read(@path).include?(obj)
@@ -119,34 +129,42 @@ module MiniTest
 
     def assert_exists(file_or_dir)
       assert File.exists?(file_or_dir.path)
+      file_or_dir
     end
 
     def refute_exists(file_or_dir)
       refute File.exists?(file_or_dir.path)
+      file_or_dir
     end
 
     def assert_installed(package)
       refute package.version.nil?, "Expected package '#{package.name}' to be installed"
+      package
     end
 
     def refute_installed(package)
       assert package.version.nil?, "Expected package '#{package.name}' to not be installed"
+      installed
     end
 
     def assert_running(service)
       assert service.running, "Expected service '#{service.name}' to be running"
+      service
     end
 
     def refute_running(service)
       refute service.running, "Expected service '#{service.name}' to not be running"
+      service
     end
 
     def assert_enabled(service)
       assert service.enabled, "Expected service '#{service.name}' to be enabled"
+      service
     end
 
     def refute_enabled(service)
       refute service.enabled, "Expected service '#{service.name}' to be disabled"
+      service
     end
 
     # MiniTest::Spec
