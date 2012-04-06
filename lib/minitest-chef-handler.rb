@@ -75,6 +75,7 @@ module MiniTest
           @run_status = runner.run_status
           @node = @run_status.node
           @run_context = @run_status.run_context
+          return unless ran_recipe?(self.class.name)
         end
         super(runner)
       end
