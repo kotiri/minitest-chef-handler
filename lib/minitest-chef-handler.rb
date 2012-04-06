@@ -1,9 +1,24 @@
-require 'minitest/spec'
 require 'minitest/unit'
+require 'minitest/spec'
+
+# Ensure that all notifications are handled before exiting. This is preferable
+# to raising or exiting from our handler and breaking other handlers.
+Chef::Client.class_eval do
+  class << self
+    attr_accessor :exit_error
+  end
+
+  alias :old_run_completed_successfully :run_completed_successfully
+
+  def run_completed_successfully
+    old_run_completed_successfully
+    exit_error = Chef::Client.exit_error
+    Chef::Application.fatal!(exit_error[:message], exit_error[:code]) if exit_error
+  end
+end
 
 module MiniTest
   module Chef
-    class TestFailure < Exception; end
     class Handler < ::Chef::Handler
       def initialize(options = {})
         path = options.delete(:path) || './test/test_*.rb'
@@ -12,36 +27,24 @@ module MiniTest
         @options = options
       end
 
-      def run_report_safely(run_status)
-        run_tests_and_raise_on_failure!(run_status)
-      end
-
-      def run_tests_and_raise_on_failure!(run_status)
-        begin
-          run_report_unsafe(run_status)
-        rescue Exception => e
-          if e.kind_of?(MiniTest::Chef::TestFailure)
-            ::Chef::Log.error("There were test failures.")
-            raise
-          else
-            ::Chef::Log.error("Report handler #{self.class.name} raised #{e.inspect}")
-            Array(e.backtrace).each { |line| ::Chef::Log.error(line) }
-          end
-        ensure
-          @run_status = nil
-        end
-      end
-
       def report
         # do not run tests if chef failed
         return if failed?
 
         runner = Runner.new(run_status)
         test_failures = runner._run(miniunit_options)
-        raise MiniTest::Chef::TestFailure if test_failures > 0
+        ensure_ci_fails_build if test_failures > 0
       end
 
       private
+
+      def ensure_ci_fails_build
+        if ::Chef::Config[:solo]
+          ::Chef::Client.exit_error =
+            {:message => 'There were test failures', :code => 3}
+        end
+      end
+
       def miniunit_options
         options = []
         options << ['-n', @options[:filter]] if @options[:filter]
@@ -105,8 +108,10 @@ module MiniTest
       include MiniTest::Chef::Resources
       include MiniTest::Chef::RunState
     end
-    MiniTest::Spec.register_spec_type(/^[a-z_]+\:\:[a-z_]+$/, MiniTest::Chef::Spec)
 
+    # MiniTest::Chef expectations will be available to specs that look like Chef recipes.
+    #   describe "apache2::default" do
+    MiniTest::Spec.register_spec_type(/^[a-z_]+\:\:[a-z_]+$/, MiniTest::Chef::Spec)
   end
 
   module Assertions
