@@ -34,7 +34,7 @@ module MiniTest
 
         runner = Runner.new(run_status)
         test_failures = runner._run(miniunit_options)
-        ensure_ci_fails_build if test_failures > 0
+        ensure_ci_fails_build if test_failures and test_failures > 0
       end
 
       private
