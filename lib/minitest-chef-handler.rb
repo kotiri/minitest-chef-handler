@@ -1,6 +1,23 @@
 require 'minitest/unit'
 require 'minitest/spec'
 
+# Allow the exit code to be set to fail the build, while still ensuring that all
+# notifications are handled before exiting. This is preferable to raising or
+# exiting from our handler and breaking other handlers.
+Chef::Client.class_eval do
+  class << self
+    attr_accessor :exit_error
+  end
+
+  alias :old_run_completed_successfully :run_completed_successfully
+
+  def run_completed_successfully
+    old_run_completed_successfully
+    exit_error = Chef::Client.exit_error
+    Chef::Application.fatal!(exit_error[:message], exit_error[:code]) if exit_error
+  end
+end
+
 module MiniTest
   module Chef
     class Handler < ::Chef::Handler
@@ -16,15 +33,22 @@ module MiniTest
         return if failed?
 
         runner = Runner.new(run_status)
-
-        if custom_runner?
+        test_failures = if custom_runner?
           runner._run(miniunit_options)
         else
           runner.run(miniunit_options)
         end
+        ensure_build_fails if test_failures and test_failures > 0
       end
 
       private
+
+      def ensure_build_fails
+        if ::Chef::Config[:solo]
+          ::Chef::Client.exit_error =
+            {:message => 'There were test failures', :code => 3}
+        end
+      end
 
       def miniunit_options
         options = []
