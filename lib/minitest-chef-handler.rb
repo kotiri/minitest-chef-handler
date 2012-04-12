@@ -1,3 +1,4 @@
+require 'etc'
 require 'minitest/unit'
 require 'minitest/spec'
 
@@ -123,12 +124,26 @@ module MiniTest
 
       ::Chef::Resource.class_eval do
         include MiniTest::Assertions
+
         def with(attribute, values)
-          assert_equal values, send(attribute)
+          assert_equal values, resource_value(attribute, values)
           self
         end
         alias :and :with
         alias :must_have :with
+
+        private
+
+        def resource_value(attribute, values)
+          case attribute
+            when :mode then mode.kind_of?(Integer) ? mode.to_s(8) : mode.to_s
+            when :owner || :user then Etc.getpwuid(owner).name
+            when :group then Etc.getgrgid(group).name
+          else
+            send(attribute)
+          end
+        end
+
       end
 
     end
