@@ -1,4 +1,5 @@
 require 'minitest/unit'
+require 'minitest/spec'
 
 module MiniTest
   module Chef
@@ -52,7 +53,7 @@ module MiniTest
       end
     end
 
-    class TestCase < MiniTest::Unit::TestCase
+    module RunState
       attr_reader :run_status, :node, :run_context
 
       def run(runner)
@@ -64,5 +65,56 @@ module MiniTest
         super(runner)
       end
     end
+
+    module Resources
+      include ::Chef::Mixin::ConvertToClassName
+
+      # Expose Chef support for loading current resource state
+      def self.register_resource(resource, *required_args)
+        define_method(resource) do |name, *options|
+          clazz = ::Chef::Resource.const_get(convert_to_class_name(resource.to_s))
+          res = clazz.new(name, run_context)
+          required_args.each do |arg|
+            res.send(arg, options.first[arg])
+          end
+          provider = ::Chef::Platform.provider_for_resource(res)
+          provider.load_current_resource
+          provider.current_resource
+        end
+      end
+      register_resource(:file)
+    end
+
+    class TestCase < MiniTest::Unit::TestCase
+      include MiniTest::Chef::Resources
+      include MiniTest::Chef::RunState
+    end
+
+    class MiniTest::Chef::Spec < MiniTest::Spec
+      include MiniTest::Chef::Resources
+      include MiniTest::Chef::RunState
+    end
+
+    # MiniTest::Chef expectations will be available to specs that look like Chef recipes.
+    #   describe "apache2::default" do
+    MiniTest::Spec.register_spec_type(/^[a-z_\-]+\:\:[a-z_\-]+$/, MiniTest::Chef::Spec)
   end
+
+  module Assertions
+
+    def assert_path_exists(file_or_dir)
+      assert File.exists?(file_or_dir.path)
+      file_or_dir
+    end
+
+    def refute_path_exists(file_or_dir)
+      refute File.exists?(file_or_dir.path)
+      file_or_dir
+    end
+
+    # MiniTest::Spec
+    ::Chef::Resource::File.infect_an_assertion :assert_path_exists, :must_exist, :only_one_argument
+    ::Chef::Resource::File.infect_an_assertion :refute_path_exists, :wont_exist, :only_one_argument
+  end
+
 end
