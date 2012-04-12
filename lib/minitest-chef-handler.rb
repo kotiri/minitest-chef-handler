@@ -120,6 +120,17 @@ module MiniTest
         end
       end
       register_resource(:file)
+
+      ::Chef::Resource.class_eval do
+        include MiniTest::Assertions
+        def with(attribute, values)
+          assert_equal values, send(attribute)
+          self
+        end
+        alias :and :with
+        alias :must_have :with
+      end
+
     end
 
     class TestCase < MiniTest::Unit::TestCase
