@@ -145,7 +145,6 @@ module MiniTest
         end
 
       end
-
     end
 
     class TestCase < MiniTest::Unit::TestCase
@@ -175,9 +174,21 @@ module MiniTest
       file_or_dir
     end
 
+    def assert_matches_content(file, regexp)
+      assert File.read(file.path).match(regexp)
+      file
+    end
+
+    def refute_matches_content(file, regexp)
+      refute File.read(file.path).match(regexp)
+      file
+    end
+
     # MiniTest::Spec
     ::Chef::Resource::File.infect_an_assertion :assert_path_exists, :must_exist, :only_one_argument
     ::Chef::Resource::File.infect_an_assertion :refute_path_exists, :wont_exist, :only_one_argument
+    ::Chef::Resource::File.infect_an_assertion :assert_matches_content, :must_match, :only_one_argument
+    ::Chef::Resource::File.infect_an_assertion :refute_matches_content, :wont_match, :only_one_argument
   end
 
 end
