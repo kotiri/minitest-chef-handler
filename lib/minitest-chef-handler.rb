@@ -80,11 +80,24 @@ module MiniTest
     module RunState
       attr_reader :run_status, :node, :run_context
 
+      def ran_recipe?(recipe)
+        node.run_state[:seen_recipes].keys.include?(recipe)
+      end
+
+      def current_recipe
+        self.class.name.split('::')[0..1].join('::')
+      end
+
       def run(runner)
         if runner.respond_to?(:run_status)
           @run_status = runner.run_status
           @node = @run_status.node
           @run_context = @run_status.run_context
+
+          # Don't run this test if the recipe was not part of the Chef run.
+          # TODO: It should be possible to avoid being called at all by passing
+          # a block to MiniTest::Spec.register_spec_type.
+          return unless ran_recipe?(current_recipe)
         end
         super(runner)
       end
